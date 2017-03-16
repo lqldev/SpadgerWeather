@@ -1,0 +1,9 @@
+<litepal>
+    <dbname values="spadger_weather"/>
+    <version values="1"/>
+    <list>
+        <mapping class="com.lqldev.spadgerweather.db.Province"/>
+        <mapping class="com.lqldev.spadgerweather.db.City"/>
+        <mapping class="com.lqldev.spadgerweather.db.County"/>
+    </list>
+</litepal>
