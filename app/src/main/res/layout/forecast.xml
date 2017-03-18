@@ -15,6 +15,13 @@
         android:textColor="#fff"
         android:textSize="20sp" />
 
+    <TextView
+        android:background="#fff"
+        android:layout_marginLeft="15dp"
+        android:layout_marginRight="15dp"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"/>
+
     <LinearLayout
         android:id="@+id/forecast_layout"
         android:layout_width="match_parent"

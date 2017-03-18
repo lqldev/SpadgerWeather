@@ -93,11 +93,19 @@ public class ChooseAreaFragment extends android.support.v4.app.Fragment {
                     selectedCity = cityList.get(position);
                     queryCounties();
                 } else if (currentLevel == LEVEL_COUNTY) {
-                    //当前是县列表，点击后查询并展示对应的天气信息，跳转到天气界面
-                    Intent intent = new Intent(getActivity(),WeatherActivity.class);
-                    intent.putExtra("weather_id",countyList.get(position).getWeatherId());
-                    startActivity(intent);
-                    getActivity().finish();
+                    //当前是县列表，点击后查询并展示对应的天气信息，并显示
+                    String weatherId = countyList.get(position).getWeatherId();
+                    if (getActivity() instanceof MainActivity) {
+                        Intent intent = new Intent(getActivity(), WeatherActivity.class);
+                        intent.putExtra("weather_id", weatherId);
+                        startActivity(intent);
+                        getActivity().finish();
+                    } else if (getActivity() instanceof WeatherActivity) {
+                        WeatherActivity weatherActivity = (WeatherActivity)getActivity();
+                        weatherActivity.drawerLayout.closeDrawers();
+                        weatherActivity.swipeRefresh.setRefreshing(true);
+                        weatherActivity.requestWeather(weatherId);
+                    }
                 }
             }
         });

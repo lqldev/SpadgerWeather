@@ -2,12 +2,18 @@ package com.lqldev.spadgerweather;
 
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.view.GravityCompat;
+import android.support.v4.widget.DrawerLayout;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -24,6 +30,7 @@ import com.lqldev.spadgerweather.util.Utility;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.TimeZone;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -43,8 +50,8 @@ public class WeatherActivity extends AppCompatActivity {
      * 天气界面各种控件
      */
     private ImageView weatherBackgroundImage;
-    private SwipeRefreshLayout swipeRefresh;
     private ScrollView weatherLayout;
+    private Button showNavigationButton;
     private TextView titleCity;
     private TextView titleUpdateTime;
     private TextView degreeText;
@@ -57,17 +64,23 @@ public class WeatherActivity extends AppCompatActivity {
     private TextView carWashText;
     private TextView sportText;
 
+    //public 选择区域的Fragment需要调用
+    public DrawerLayout drawerLayout;
+    public SwipeRefreshLayout swipeRefresh;
+
+
     private String mWeatherId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_weather);
-        //获取各个控件实例
 
+        //获取各个控件实例
         weatherBackgroundImage = (ImageView) findViewById(R.id.weather_background_image);
         swipeRefresh = (SwipeRefreshLayout) findViewById(R.id.swipe_refresh);
         weatherLayout = (ScrollView) findViewById(R.id.weather_layout);
+        showNavigationButton = (Button)findViewById(R.id.nav_button);
         titleCity = (TextView) findViewById(R.id.title_city);
         titleUpdateTime = (TextView) findViewById(R.id.update_time);
         degreeText = (TextView) findViewById(R.id.degree_text);
@@ -79,6 +92,7 @@ public class WeatherActivity extends AppCompatActivity {
         comfortText = (TextView) findViewById(R.id.comfort_text);
         carWashText = (TextView) findViewById(R.id.car_wash_text);
         sportText = (TextView) findViewById(R.id.sport_text);
+        drawerLayout = (DrawerLayout) findViewById(R.id.weather_drawer_layout);
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
@@ -110,6 +124,14 @@ public class WeatherActivity extends AppCompatActivity {
             @Override
             public void onRefresh() {
                 requestWeather(mWeatherId);
+            }
+        });
+
+        //显示导航选择页面
+        showNavigationButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                drawerLayout.openDrawer(GravityCompat.START);
             }
         });
     }
@@ -177,7 +199,10 @@ public class WeatherActivity extends AppCompatActivity {
      *
      * @param weatherId
      */
-    private void requestWeather(final String weatherId) {
+    public void requestWeather(final String weatherId) {
+        //记录最新的天气Id，有可能是别的类外部直接调用这个方法传进来的id
+        mWeatherId = weatherId;
+
         String weatherUrl = WEATHER_API_ADDRESS
                 + "?" + WEATHER_API_PARAM_NAME_WEATHER_ID + "=" + weatherId
                 + "&" + WEATHER_API_PARAM_NAME_KEY + "=" + WEATHER_API_KEY;
@@ -252,6 +277,7 @@ public class WeatherActivity extends AppCompatActivity {
      */
     private String getNowDate() {
         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+        df.setTimeZone(TimeZone.getTimeZone("Asia/Shanghai"));
         String today = df.format(new Date());
         return today;
     }
