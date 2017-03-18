@@ -1,15 +1,13 @@
 package com.lqldev.spadgerweather;
 
 import android.content.SharedPreferences;
-import android.media.Image;
 import android.preference.PreferenceManager;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.text.style.BackgroundColorSpan;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -24,6 +22,8 @@ import com.lqldev.spadgerweather.util.HttpUtil;
 import com.lqldev.spadgerweather.util.Utility;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -43,6 +43,7 @@ public class WeatherActivity extends AppCompatActivity {
      * 天气界面各种控件
      */
     private ImageView weatherBackgroundImage;
+    private SwipeRefreshLayout swipeRefresh;
     private ScrollView weatherLayout;
     private TextView titleCity;
     private TextView titleUpdateTime;
@@ -56,13 +57,17 @@ public class WeatherActivity extends AppCompatActivity {
     private TextView carWashText;
     private TextView sportText;
 
+    private String mWeatherId;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_weather);
         //获取各个控件实例
-        weatherLayout = (ScrollView) findViewById(R.id.weather_layout);
+
         weatherBackgroundImage = (ImageView) findViewById(R.id.weather_background_image);
+        swipeRefresh = (SwipeRefreshLayout) findViewById(R.id.swipe_refresh);
+        weatherLayout = (ScrollView) findViewById(R.id.weather_layout);
         titleCity = (TextView) findViewById(R.id.title_city);
         titleUpdateTime = (TextView) findViewById(R.id.update_time);
         degreeText = (TextView) findViewById(R.id.degree_text);
@@ -76,25 +81,37 @@ public class WeatherActivity extends AppCompatActivity {
         sportText = (TextView) findViewById(R.id.sport_text);
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        String weatherString = preferences.getString("weather", null);
-        String bingPictureUrl = preferences.getString("bing_picture",null);
-        //如果没有缓存
-        if (bingPictureUrl != null) {
+
+        String bingPictureUrl = preferences.getString("bing_picture", null);
+        String bingPicUpdateDate = preferences.getString("bing_picture_update_date", null);
+        //如果有缓存图片地址而且是今天的，直接显示，否则获取今天的必应每日一图
+        if (bingPictureUrl != null && bingPicUpdateDate !=null && bingPicUpdateDate.equals(getNowDate())) {
             Glide.with(this).load(bingPictureUrl).into(weatherBackgroundImage);
         } else {
             loadBingPicture();
         }
 
+        String weatherString = preferences.getString("weather", null);
         if (weatherString != null) {
             //本地有缓存，直接显示缓存的天气信息
             Weather weather = Utility.handleWeatherResponse(weatherString);
+            mWeatherId = weather.basic.weatherId;
             showWeatherInfo(weather);
         } else {
             //没有缓存，从服务器查询天气信息
-            String weatherId = getIntent().getStringExtra("weather_id");
+            mWeatherId = getIntent().getStringExtra("weather_id");
             weatherLayout.setVisibility(View.INVISIBLE);
-            requestWeather(weatherId);
+            requestWeather(mWeatherId);
         }
+
+        //下拉刷新功能
+        swipeRefresh.setColorSchemeResources(R.color.colorPrimary);
+        swipeRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                requestWeather(mWeatherId);
+            }
+        });
     }
 
     /**
@@ -114,7 +131,7 @@ public class WeatherActivity extends AppCompatActivity {
         //当天天气信息
         degreeText.setText(degree);
         weatherInfoText.setText(weatherInfo);
-        weatherWindText.setText(wind.level + "级 " + wind.direction + (wind.direction.endsWith("风")?"":"风"));
+        weatherWindText.setText(wind.level + "级 " + wind.direction + (wind.direction.endsWith("风") ? "" : "风"));
         //预报信息
         forecastLayout.removeAllViews();
         String day_info;
@@ -156,7 +173,7 @@ public class WeatherActivity extends AppCompatActivity {
     }
 
     /**
-     * 从服务器查询天气信息，然后显示到界面上，同时缓存所查询到的最新天气
+     * 从服务器查询天气信息，同时缓存所查询到的最新天气，然后显示到界面上。
      *
      * @param weatherId
      */
@@ -172,6 +189,7 @@ public class WeatherActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         Toast.makeText(WeatherActivity.this, "获取天气失败", Toast.LENGTH_SHORT).show();
+                        swipeRefresh.setRefreshing(false);
                     }
                 });
             }
@@ -187,13 +205,14 @@ public class WeatherActivity extends AppCompatActivity {
                         if (weather != null && "ok".equals(weather.status)) {
                             SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(WeatherActivity.this)
                                     .edit();
-                            editor.putString("weather",responseText);
+                            editor.putString("weather", responseText);
                             editor.apply();
                             showWeatherInfo(weather);
                         } else {
                             Log.d(TAG, "requestWeather > onResponse: 获取天气失败。");
                             Toast.makeText(WeatherActivity.this, "获取天气信息失败", Toast.LENGTH_SHORT).show();
                         }
+                        swipeRefresh.setRefreshing(false);
                     }
                 });
             }
@@ -203,7 +222,7 @@ public class WeatherActivity extends AppCompatActivity {
     /**
      * 获取必应每日一图
      */
-    private void loadBingPicture(){
+    private void loadBingPicture() {
         HttpUtil.sendOkHttpRequest(WEATHER_API_BING_DAILY_PICTURE_ADDRESS, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
@@ -215,6 +234,7 @@ public class WeatherActivity extends AppCompatActivity {
                 final String pictureUrl = response.body().string();
                 SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(WeatherActivity.this).edit();
                 editor.putString("bing_picture", pictureUrl);
+                editor.putString("bing_picture_update_date", getNowDate());
                 editor.apply();
                 runOnUiThread(new Runnable() {
                     @Override
@@ -224,5 +244,15 @@ public class WeatherActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    /**
+     * 获取今天的日期
+     * @return
+     */
+    private String getNowDate() {
+        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+        String today = df.format(new Date());
+        return today;
     }
 }
