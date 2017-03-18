@@ -1,19 +1,22 @@
 package com.lqldev.spadgerweather;
 
 import android.content.SharedPreferences;
+import android.media.Image;
 import android.preference.PreferenceManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.text.style.BackgroundColorSpan;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.bumptech.glide.util.LogTime;
-import com.google.gson.annotations.SerializedName;
+import com.bumptech.glide.Glide;
 import com.lqldev.spadgerweather.gson.ForeCast;
 import com.lqldev.spadgerweather.gson.Now;
 import com.lqldev.spadgerweather.gson.Weather;
@@ -31,13 +34,15 @@ public class WeatherActivity extends AppCompatActivity {
     public static final String TAG = "WeatherActivity";
 
     //天气API接口相关配置
-    private static final String WEATHER_API_ADDR = "http://guolin.tech/api/weather";
+    private static final String WEATHER_API_ADDRESS = "http://guolin.tech/api/weather";
     private static final String WEATHER_API_PARAM_NAME_WEATHER_ID = "cityid";
     private static final String WEATHER_API_PARAM_NAME_KEY = "key";
     private static final String WEATHER_API_KEY = "29cdf0722dd347eaa5be191ab05aea5f";
+    private static final String WEATHER_API_BING_DAILY_PICTURE_ADDRESS = "http://guolin.tech/api/bing_pic";
     /**
      * 天气界面各种控件
      */
+    private ImageView weatherBackgroundImage;
     private ScrollView weatherLayout;
     private TextView titleCity;
     private TextView titleUpdateTime;
@@ -57,6 +62,7 @@ public class WeatherActivity extends AppCompatActivity {
         setContentView(R.layout.activity_weather);
         //获取各个控件实例
         weatherLayout = (ScrollView) findViewById(R.id.weather_layout);
+        weatherBackgroundImage = (ImageView) findViewById(R.id.weather_background_image);
         titleCity = (TextView) findViewById(R.id.title_city);
         titleUpdateTime = (TextView) findViewById(R.id.update_time);
         degreeText = (TextView) findViewById(R.id.degree_text);
@@ -68,8 +74,17 @@ public class WeatherActivity extends AppCompatActivity {
         comfortText = (TextView) findViewById(R.id.comfort_text);
         carWashText = (TextView) findViewById(R.id.car_wash_text);
         sportText = (TextView) findViewById(R.id.sport_text);
+
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         String weatherString = preferences.getString("weather", null);
+        String bingPictureUrl = preferences.getString("bing_picture",null);
+        //如果没有缓存
+        if (bingPictureUrl != null) {
+            Glide.with(this).load(bingPictureUrl).into(weatherBackgroundImage);
+        } else {
+            loadBingPicture();
+        }
+
         if (weatherString != null) {
             //本地有缓存，直接显示缓存的天气信息
             Weather weather = Utility.handleWeatherResponse(weatherString);
@@ -146,7 +161,7 @@ public class WeatherActivity extends AppCompatActivity {
      * @param weatherId
      */
     private void requestWeather(final String weatherId) {
-        String weatherUrl = WEATHER_API_ADDR
+        String weatherUrl = WEATHER_API_ADDRESS
                 + "?" + WEATHER_API_PARAM_NAME_WEATHER_ID + "=" + weatherId
                 + "&" + WEATHER_API_PARAM_NAME_KEY + "=" + WEATHER_API_KEY;
         HttpUtil.sendOkHttpRequest(weatherUrl, new Callback() {
@@ -179,6 +194,32 @@ public class WeatherActivity extends AppCompatActivity {
                             Log.d(TAG, "requestWeather > onResponse: 获取天气失败。");
                             Toast.makeText(WeatherActivity.this, "获取天气信息失败", Toast.LENGTH_SHORT).show();
                         }
+                    }
+                });
+            }
+        });
+    }
+
+    /**
+     * 获取必应每日一图
+     */
+    private void loadBingPicture(){
+        HttpUtil.sendOkHttpRequest(WEATHER_API_BING_DAILY_PICTURE_ADDRESS, new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "loadBingPicture > onFailure: 请求必应图片出错。", e);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                final String pictureUrl = response.body().string();
+                SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(WeatherActivity.this).edit();
+                editor.putString("bing_picture", pictureUrl);
+                editor.apply();
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Glide.with(WeatherActivity.this).load(pictureUrl).into(weatherBackgroundImage);
                     }
                 });
             }
