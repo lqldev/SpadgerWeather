@@ -14,6 +14,10 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.TimeZone;
+
 /**
  * Created by Administrator on 2017-03-17.
  */
@@ -116,5 +120,15 @@ public class Utility {
             Log.e(TAG, "handleWeatherResponse: json字符串解析错误：" + response, e);
         }
         return null;
+    }
+
+    /**
+     * 获取今天的日期，纠正时区；
+     */
+    public static  String getNowDate() {
+        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+        df.setTimeZone(TimeZone.getTimeZone("Asia/Shanghai"));
+        String today = df.format(new Date());
+        return today;
     }
 }

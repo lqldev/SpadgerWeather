@@ -1,16 +1,16 @@
 package com.lqldev.spadgerweather;
 
+import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
+import android.support.annotation.NonNull;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
@@ -24,6 +24,7 @@ import com.bumptech.glide.Glide;
 import com.lqldev.spadgerweather.gson.ForeCast;
 import com.lqldev.spadgerweather.gson.Now;
 import com.lqldev.spadgerweather.gson.Weather;
+import com.lqldev.spadgerweather.service.AutoUpdateService;
 import com.lqldev.spadgerweather.util.HttpUtil;
 import com.lqldev.spadgerweather.util.Utility;
 
@@ -45,7 +46,17 @@ public class WeatherActivity extends AppCompatActivity {
     private static final String WEATHER_API_PARAM_NAME_WEATHER_ID = "cityid";
     private static final String WEATHER_API_PARAM_NAME_KEY = "key";
     private static final String WEATHER_API_KEY = "29cdf0722dd347eaa5be191ab05aea5f";
-    private static final String WEATHER_API_BING_DAILY_PICTURE_ADDRESS = "http://guolin.tech/api/bing_pic";
+    public static final String WEATHER_API_STATUS_OK = "ok";
+    public static final String WEATHER_API_BING_DAILY_PICTURE_ADDRESS = "http://guolin.tech/api/bing_pic";
+    public static final String PK_WEATHER = "weather";
+    public static final String PK_WEATHER_PICTURE = "bing_picture";
+    public static final String PK_WEATHER_PICTURE_UPDATE_DATE = "bing_picture_update_date";
+
+    /**
+     * 启动活动所需参数
+     */
+    public static final String INTENT_EXTRA_WEATHER_ID = "weather_id";
+
     /**
      * 天气界面各种控件
      */
@@ -96,16 +107,16 @@ public class WeatherActivity extends AppCompatActivity {
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
-        String bingPictureUrl = preferences.getString("bing_picture", null);
-        String bingPicUpdateDate = preferences.getString("bing_picture_update_date", null);
+        String bingPictureUrl = preferences.getString(PK_WEATHER_PICTURE, null);
+        String bingPicUpdateDate = preferences.getString(PK_WEATHER_PICTURE_UPDATE_DATE, null);
         //如果有缓存图片地址而且是今天的，直接显示，否则获取今天的必应每日一图
-        if (bingPictureUrl != null && bingPicUpdateDate !=null && bingPicUpdateDate.equals(getNowDate())) {
+        if (bingPictureUrl != null && bingPicUpdateDate !=null && bingPicUpdateDate.equals(Utility.getNowDate())) {
             Glide.with(this).load(bingPictureUrl).into(weatherBackgroundImage);
         } else {
             loadBingPicture();
         }
 
-        String weatherString = preferences.getString("weather", null);
+        String weatherString = preferences.getString(PK_WEATHER, null);
         if (weatherString != null) {
             //本地有缓存，直接显示缓存的天气信息
             Weather weather = Utility.handleWeatherResponse(weatherString);
@@ -113,7 +124,7 @@ public class WeatherActivity extends AppCompatActivity {
             showWeatherInfo(weather);
         } else {
             //没有缓存，从服务器查询天气信息
-            mWeatherId = getIntent().getStringExtra("weather_id");
+            mWeatherId = getIntent().getStringExtra(INTENT_EXTRA_WEATHER_ID);
             weatherLayout.setVisibility(View.INVISIBLE);
             requestWeather(mWeatherId);
         }
@@ -142,6 +153,7 @@ public class WeatherActivity extends AppCompatActivity {
      * @param weather
      */
     private void showWeatherInfo(Weather weather) {
+
         String cityName = weather.basic.cityName;
         String updateTime = weather.basic.update.updateTime.split(" ")[1];
         String degree = weather.now.temperature + "°C";
@@ -192,6 +204,9 @@ public class WeatherActivity extends AppCompatActivity {
 
         //所有设置完成后，显示天气信息
         weatherLayout.setVisibility(View.VISIBLE);
+        //每次显示成功后重新定时8小时自动更新任务
+        Intent autoUpdateIntent = new Intent(this, AutoUpdateService.class);
+        startService(autoUpdateIntent);
     }
 
     /**
@@ -203,9 +218,7 @@ public class WeatherActivity extends AppCompatActivity {
         //记录最新的天气Id，有可能是别的类外部直接调用这个方法传进来的id
         mWeatherId = weatherId;
 
-        String weatherUrl = WEATHER_API_ADDRESS
-                + "?" + WEATHER_API_PARAM_NAME_WEATHER_ID + "=" + weatherId
-                + "&" + WEATHER_API_PARAM_NAME_KEY + "=" + WEATHER_API_KEY;
+        String weatherUrl = getWeatherRequestUrl(weatherId);
         HttpUtil.sendOkHttpRequest(weatherUrl, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
@@ -227,10 +240,10 @@ public class WeatherActivity extends AppCompatActivity {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        if (weather != null && "ok".equals(weather.status)) {
+                        if (weather != null && WEATHER_API_STATUS_OK.equals(weather.status)) {
                             SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(WeatherActivity.this)
                                     .edit();
-                            editor.putString("weather", responseText);
+                            editor.putString(PK_WEATHER, responseText);
                             editor.apply();
                             showWeatherInfo(weather);
                         } else {
@@ -242,6 +255,13 @@ public class WeatherActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    @NonNull
+    public static String getWeatherRequestUrl(String weatherId) {
+        return WEATHER_API_ADDRESS
+                    + "?" + WEATHER_API_PARAM_NAME_WEATHER_ID + "=" + weatherId
+                    + "&" + WEATHER_API_PARAM_NAME_KEY + "=" + WEATHER_API_KEY;
     }
 
     /**
@@ -258,8 +278,8 @@ public class WeatherActivity extends AppCompatActivity {
             public void onResponse(Call call, Response response) throws IOException {
                 final String pictureUrl = response.body().string();
                 SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(WeatherActivity.this).edit();
-                editor.putString("bing_picture", pictureUrl);
-                editor.putString("bing_picture_update_date", getNowDate());
+                editor.putString(PK_WEATHER_PICTURE, pictureUrl);
+                editor.putString(PK_WEATHER_PICTURE_UPDATE_DATE, Utility.getNowDate());
                 editor.apply();
                 runOnUiThread(new Runnable() {
                     @Override
@@ -275,10 +295,10 @@ public class WeatherActivity extends AppCompatActivity {
      * 获取今天的日期
      * @return
      */
-    private String getNowDate() {
-        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
-        df.setTimeZone(TimeZone.getTimeZone("Asia/Shanghai"));
-        String today = df.format(new Date());
-        return today;
+
+    public static void start(Context context, String weatherId) {
+        Intent intent = new Intent(context,WeatherActivity.class);
+        intent.putExtra(INTENT_EXTRA_WEATHER_ID,weatherId);
+        context.startActivity(intent);
     }
 }

@@ -96,9 +96,7 @@ public class ChooseAreaFragment extends android.support.v4.app.Fragment {
                     //当前是县列表，点击后查询并展示对应的天气信息，并显示
                     String weatherId = countyList.get(position).getWeatherId();
                     if (getActivity() instanceof MainActivity) {
-                        Intent intent = new Intent(getActivity(), WeatherActivity.class);
-                        intent.putExtra("weather_id", weatherId);
-                        startActivity(intent);
+                        WeatherActivity.start(getActivity(),weatherId);
                         getActivity().finish();
                     } else if (getActivity() instanceof WeatherActivity) {
                         WeatherActivity weatherActivity = (WeatherActivity)getActivity();
